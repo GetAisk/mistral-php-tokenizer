@@ -20,12 +20,12 @@
     },
     "autoload": {
         "psr-4": {
-            "Mistral\\Tokenizer\\": "src/"
+            "Aisk\\Tokenizer\\": "src/"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "Mistral\\Tokenizer\\Tests\\": "tests/"
+            "Aisk\\Tokenizer\\Tests\\": "tests/"
         }
     },
     "bin": [

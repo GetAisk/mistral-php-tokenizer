@@ -1,6 +1,6 @@
 <?php
 
-namespace Mistral\Tokenizer;
+namespace Aisk\Tokenizer;
 
 /**
  * Abstract base class for tokenizers implementing common functionality

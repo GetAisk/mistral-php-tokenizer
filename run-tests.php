@@ -7,8 +7,8 @@ require_once __DIR__ . '/src/Utils.php';
 require_once __DIR__ . '/src/TekkenTokenizer.php';
 require_once __DIR__ . '/src/TokenizerFactory.php';
 
-use Mistral\Tokenizer\TekkenTokenizer;
-use Mistral\Tokenizer\Utils;
+use Aisk\Tokenizer\TekkenTokenizer;
+use Aisk\Tokenizer\Utils;
 
 echo "Running tests for Mistral PHP Tokenizer\n";
 echo "======================================\n\n";

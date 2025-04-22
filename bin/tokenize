@@ -24,8 +24,8 @@ if ($autoloadFile === null) {
     require_once __DIR__ . '/../src/TokenizerFactory.php';
 }
 
-use Mistral\Tokenizer\TokenizerFactory;
-use Mistral\Tokenizer\TekkenTokenizer;
+use Aisk\Tokenizer\TokenizerFactory;
+use Aisk\Tokenizer\TekkenTokenizer;
 
 // Parse command line options
 $shortOptions = 'hv:f:c';

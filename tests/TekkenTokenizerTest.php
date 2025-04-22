@@ -1,10 +1,10 @@
 <?php
 
-namespace Mistral\Tokenizer\Tests;
+namespace Aisk\Tokenizer\Tests;
 
-use Mistral\Tokenizer\TekkenTokenizer;
-use Mistral\Tokenizer\TokenizerFactory;
-use Mistral\Tokenizer\Utils;
+use Aisk\Tokenizer\TekkenTokenizer;
+use Aisk\Tokenizer\TokenizerFactory;
+use Aisk\Tokenizer\Utils;
 use PHPUnit\Framework\TestCase;
 
 class TekkenTokenizerTest extends TestCase

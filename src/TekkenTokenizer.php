@@ -1,6 +1,6 @@
 <?php
 
-namespace Mistral\Tokenizer;
+namespace Aisk\Tokenizer;
 
 /**
  * PHP implementation of the Tekken tokenizer

@@ -10,7 +10,7 @@ require_once __DIR__ . '/../src/Utils.php';
 require_once __DIR__ . '/../src/TekkenTokenizer.php';
 require_once __DIR__ . '/../src/TokenizerFactory.php';
 
-use Mistral\Tokenizer\TokenizerFactory;
+use Aisk\Tokenizer\TokenizerFactory;
 
 // Create a tokenizer factory
 $factory = new TokenizerFactory();

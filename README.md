@@ -27,7 +27,7 @@ composer require aisk/mistral-tokenizer
 
 require_once 'vendor/autoload.php';
 
-use Mistral\Tokenizer\TokenizerFactory;
+use Aisk\Tokenizer\TokenizerFactory;
 
 // Create a tokenizer factory
 $factory = new TokenizerFactory();
