@@ -1,0 +1,121 @@
+#!/usr/bin/env php
+<?php
+
+// Find and include the autoload file
+$autoloadPaths = [
+    __DIR__ . '/../vendor/autoload.php',
+    __DIR__ . '/../../../autoload.php',
+];
+
+$autoloadFile = null;
+foreach ($autoloadPaths as $path) {
+    if (file_exists($path)) {
+        $autoloadFile = $path;
+        break;
+    }
+}
+
+if ($autoloadFile === null) {
+    // Fall back to direct includes for development
+    require_once __DIR__ . '/../src/TokenizerInterface.php';
+    require_once __DIR__ . '/../src/AbstractTokenizer.php';
+    require_once __DIR__ . '/../src/Utils.php';
+    require_once __DIR__ . '/../src/TekkenTokenizer.php';
+    require_once __DIR__ . '/../src/TokenizerFactory.php';
+}
+
+use Mistral\Tokenizer\TokenizerFactory;
+use Mistral\Tokenizer\TekkenTokenizer;
+
+// Parse command line options
+$shortOptions = 'hv:f:c';
+$longOptions = ['help', 'version:', 'file:', 'count-only'];
+$options = getopt($shortOptions, $longOptions);
+
+// Find the input text (non-option argument)
+$text = '';
+$argv = $_SERVER['argv'];
+$reading = false;
+
+foreach ($argv as $index => $arg) {
+    // Skip the script name
+    if ($index === 0) {
+        continue;
+    }
+    
+    // If we're already reading text, just append the argument
+    if ($reading) {
+        $text .= ' ' . $arg;
+        continue;
+    }
+    
+    // Skip options and their values
+    if (substr($arg, 0, 1) === '-') {
+        // Skip this option's value too if it has one
+        $option = substr($arg, strlen($arg) > 2 && substr($arg, 0, 2) === '--' ? 2 : 1);
+        if (strpos($shortOptions, $option . ':') !== false || 
+            in_array($option . ':', $longOptions) || 
+            in_array($option . '=', $longOptions)) {
+            // This option takes a value, so skip the next argument too
+            continue;
+        }
+        continue;
+    }
+    
+    // This must be the start of our text
+    $text = $arg;
+    $reading = true;
+}
+
+// Show help
+if (isset($options['h']) || isset($options['help']) || (empty($text) && !isset($options['f']) && !isset($options['file']))) {
+    echo "Usage: tokenize [options] [text]\n";
+    echo "Options:\n";
+    echo "  -h, --help          Show this help message\n";
+    echo "  -v, --version       Specify the tokenizer version (240718, 240911, default: 240911)\n";
+    echo "  -f, --file          Tokenize text from the specified file\n";
+    echo "  -c, --count-only    Only show the token count, not the tokens\n";
+    echo "Examples:\n";
+    echo "  tokenize \"Hello, world!\"\n";
+    echo "  tokenize -v 240718 \"Hello, world!\"\n";
+    echo "  tokenize -f input.txt\n";
+    echo "  tokenize -c \"Hello, world!\"\n";
+    exit(0);
+}
+
+// Get tokenizer version
+$version = $options['v'] ?? $options['version'] ?? '240911';
+
+// For demo purposes, directly create a tokenizer
+$tokenizer = new TekkenTokenizer(
+    [], // tokenToId - simplified for testing
+    'pattern',
+    32000, // vocabSize
+    20, // numSpecialTokens
+    'v3' // version
+);
+
+// Get input text
+if (isset($options['f']) || isset($options['file'])) {
+    $filename = $options['f'] ?? $options['file'];
+    if (!file_exists($filename)) {
+        die("Error: File not found: {$filename}\n");
+    }
+    $text = file_get_contents($filename);
+} else if (empty($text)) {
+    // Read from stdin
+    $text = stream_get_contents(STDIN);
+}
+
+// Count tokens
+$tokens = $tokenizer->encode($text);
+$count = count($tokens);
+
+// Output
+if (isset($options['c']) || isset($options['count-only'])) {
+    echo $count . "\n";
+} else {
+    echo "Text: " . substr($text, 0, 50) . (strlen($text) > 50 ? '...' : '') . "\n";
+    echo "Token count: {$count}\n";
+    echo "Tokens: " . implode(' ', $tokens) . "\n";
+}
