@@ -96,6 +96,7 @@ jobs:
           
           // Define test cases
           $testCases = [
+              // Basic test cases
               "Simple text" => "Hello, world!",
               "Multi-byte characters" => "Hello, 世界!",
               "Empty string" => "",
@@ -105,6 +106,25 @@ jobs:
               "Multi-line text" => "Line 1\nLine 2\nLine 3",
               "JSON structure" => '{"name":"John","age":30,"city":"New York"}',
               "Code snippet" => "function hello() {\n  console.log('Hello world');\n}",
+              
+              // Longer text samples
+              "Long paragraph" => "This is a much longer paragraph that contains multiple sentences. It's designed to test how the tokenizer handles longer pieces of text with different punctuation, capitalization, and sentence structures. The goal is to see if longer text reveals different tokenization patterns between PHP and Python implementations. Will the difference in token count grow linearly with text length, or will there be some other pattern?",
+              
+              "Technical documentation" => "# Installation Guide\n\n## Prerequisites\n\n- PHP 8.0 or higher\n- Composer\n- mbstring extension\n\n## Installation Steps\n\n1. Clone the repository:\n```bash\ngit clone https://github.com/example/tokenizer.git\ncd tokenizer\n```\n\n2. Install dependencies:\n```bash\ncomposer install\n```\n\n3. Configure your environment:\n```bash\ncp .env.example .env\n```\n\n4. Run the tests:\n```bash\nphpunit\n```",
+              
+              "Programming code" => "<?php\n\nnamespace App\\Services;\n\nuse App\\Models\\User;\nuse Illuminate\\Support\\Facades\\Hash;\nuse Illuminate\\Auth\\AuthenticationException;\n\nclass AuthService\n{\n    /**\n     * Authenticate a user with email and password\n     *\n     * @param string $email\n     * @param string $password\n     * @return User\n     * @throws AuthenticationException\n     */\n    public function authenticate(string $email, string $password): User\n    {\n        $user = User::where('email', $email)->first();\n        \n        if (!$user || !Hash::check($password, $user->password)) {\n            throw new AuthenticationException('The provided credentials are incorrect.');\n        }\n        \n        return $user;\n    }\n}",
+              
+              "JSON data" => '{"users":[{"id":1,"name":"John Doe","email":"john@example.com","roles":["admin","editor"],"settings":{"notifications":true,"theme":"dark"},"metadata":{"last_login":"2023-04-15T08:30:00Z","login_count":42}},{"id":2,"name":"Jane Smith","email":"jane@example.com","roles":["user"],"settings":{"notifications":false,"theme":"light"},"metadata":{"last_login":"2023-04-14T17:22:10Z","login_count":18}},{"id":3,"name":"Bob Johnson","email":"bob@example.com","roles":["editor"],"settings":{"notifications":true,"theme":"system"},"metadata":{"last_login":"2023-04-13T11:15:45Z","login_count":27}}],"pagination":{"total":3,"per_page":10,"current_page":1,"last_page":1}}',
+              
+              "Markdown content" => "# Project Documentation\n\n## Overview\n\nThis project implements a tokenizer for natural language processing tasks.\n\n## Features\n\n- Fast tokenization using BPE algorithm\n- Support for multiple languages\n- Special token handling\n- Batch processing capabilities\n\n## API Reference\n\n### `encode(text: string, add_bos: bool = false, add_eos: bool = false): number[]`\n\nEncodes a text string into token IDs.\n\n**Parameters:**\n\n- `text` - The input text to tokenize\n- `add_bos` - Whether to add the beginning-of-sequence token\n- `add_eos` - Whether to add the end-of-sequence token\n\n**Returns:**\n\nAn array of token IDs.\n\n### `decode(tokens: number[]): string`\n\nDecodes token IDs back into text.\n\n**Parameters:**\n\n- `tokens` - The token IDs to decode\n\n**Returns:**\n\nThe decoded text as a string.\n\n## License\n\nThis project is licensed under the MIT License - see the LICENSE file for details.",
+              
+              "Mixed content" => "# API Documentation\n\n## Authentication\n\n```php\n$api = new API('your-api-key');\n$response = $api->authenticate();\n```\n\nThe API uses JSON Web Tokens (JWT) for authentication. Here's an example response:\n\n```json\n{\n  \"token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ\",\n  \"expires_at\": \"2023-01-01T00:00:00Z\"\n}\n```\n\n## Common Errors\n\n| Status Code | Description |\n|-------------|-------------|\n| 400 | Bad Request |\n| 401 | Unauthorized |\n| 404 | Not Found |\n| 500 | Server Error |",
+              
+              "HTML content" => "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n    <meta charset=\"UTF-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n    <title>Example Page</title>\n    <style>\n        body {\n            font-family: Arial, sans-serif;\n            line-height: 1.6;\n            margin: 0;\n            padding: 20px;\n            color: #333;\n        }\n        .container {\n            max-width: 800px;\n            margin: 0 auto;\n        }\n        h1 {\n            color: #0066cc;\n        }\n    </style>\n</head>\n<body>\n    <div class=\"container\">\n        <header>\n            <h1>Welcome to Our Website</h1>\n            <nav>\n                <ul>\n                    <li><a href=\"#\">Home</a></li>\n                    <li><a href=\"#\">About</a></li>\n                    <li><a href=\"#\">Services</a></li>\n                    <li><a href=\"#\">Contact</a></li>\n                </ul>\n            </nav>\n        </header>\n        <main>\n            <section>\n                <h2>About Us</h2>\n                <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nullam eget felis eget urna ultrices ultricies non eget mauris. Sed euismod, lectus vel sollicitudin aliquam, elit neque commodo lorem, in tempor tellus tellus id mi.</p>\n            </section>\n        </main>\n        <footer>\n            <p>&copy; 2023 Example Company. All rights reserved.</p>\n        </footer>\n    </div>\n    <script>\n        document.addEventListener('DOMContentLoaded', function() {\n            console.log('Page loaded');\n        });\n    </script>\n</body>\n</html>",
+              
+              "URL with query parameters" => "https://www.example.com/search?q=tokenizer&category=nlp&filter=recent&page=1&sort=relevance&limit=20&include_deprecated=false&highlight=true",
+              
+              "Email thread" => "---------- Forwarded message ---------\nFrom: John Smith <john.smith@example.com>\nDate: Mon, Jan 9, 2023 at 9:32 AM\nSubject: Re: Project Update\nTo: Team <team@example.com>\n\nHi everyone,\n\nI've reviewed the latest changes and have some feedback:\n\n1. The tokenizer performance looks good, but we should add more tests\n2. We need to update the documentation\n3. There's a potential memory leak in the BPE implementation\n\nLet's discuss these points in our next meeting.\n\nBest,\nJohn\n\n> On Jan 8, 2023, at 4:15 PM, Jane Doe <jane.doe@example.com> wrote:\n> \n> Hi John,\n> \n> I've pushed the changes we discussed yesterday. The PR is ready for review.\n> \n> Changes include:\n> - Improved tokenization speed by 15%\n> - Added support for new special tokens\n> - Fixed the Unicode handling bug\n> \n> Let me know what you think!\n> \n> Regards,\n> Jane"
           ];
           
           // Write test cases to JSON file
@@ -138,12 +158,17 @@ jobs:
               $tokens = $tokenizer->encode($text, false, false);
               
               // Create a more detailed token representation for debugging
+              $maxDisplay = min(10, count($tokens));
               $debugTokens = [];
-              foreach (array_slice($tokens, 0, 10) as $token) {
+              foreach (array_slice($tokens, 0, $maxDisplay) as $token) {
                   try {
                       // Try to decode the token to see what it represents
                       $decoded = $tokenizer->decode([$token]);
                       $escaped = addcslashes($decoded, "\n\r\t\v\f\0\"\\");
+                      // For longer tokens, truncate the display
+                      if (strlen($escaped) > 20) {
+                          $escaped = substr($escaped, 0, 17) . "...";
+                      }
                       $debugTokens[] = "$token ('$escaped')";
                   } catch (Exception $e) {
                       $debugTokens[] = "$token (?)";
@@ -151,9 +176,21 @@ jobs:
               }
               $tokenDebugStr = implode(", ", $debugTokens);
               
-              echo "- Output tokens: " . implode(", ", array_slice($tokens, 0, 10)) . (count($tokens) > 10 ? "..." : "") . "\n";
-              echo "- Output token representations: " . $tokenDebugStr . (count($tokens) > 10 ? "..." : "") . "\n";
+              echo "- Output tokens: " . implode(", ", array_slice($tokens, 0, $maxDisplay)) . (count($tokens) > $maxDisplay ? "..." : "") . "\n";
+              echo "- Output token representations: " . $tokenDebugStr . (count($tokens) > $maxDisplay ? "..." : "") . "\n";
               echo "- Output token count: " . count($tokens) . "\n";
+              
+              // For longer content, add summary information
+              if (count($tokens) > 20) {
+                  echo "- Token distribution: first 10, last 10 = [" . implode(", ", array_slice($tokens, 0, 10)) . "] ... [" . implode(", ", array_slice($tokens, -10)) . "]\n";
+                  
+                  // Show a few tokens from the middle if the sequence is very long
+                  if (count($tokens) > 30) {
+                      $middleStart = intval(count($tokens) / 2) - 3;
+                      $middleTokens = array_slice($tokens, $middleStart, 6);
+                      echo "- Middle tokens: [" . implode(", ", $middleTokens) . "]\n";
+                  }
+              }
               
               $results[$name] = [
                   'text' => $text,
@@ -242,6 +279,9 @@ jobs:
                   # Escape special characters for better display
                   if token_bytes:
                       escaped = repr(token_bytes)[1:-1]  # Remove the quotes from repr
+                      # For longer tokens, truncate the display
+                      if len(escaped) > 20:
+                          escaped = escaped[:17] + "..."
                       return f"{token_id} ('{escaped}')"
                   else:
                       return f"{token_id} ('')"
@@ -279,12 +319,21 @@ jobs:
               tokens = tekken_tokenizer.encode(text, bos=False, eos=False)
               
               # Create a list of token IDs with their string representation
-              debug_tokens = [debug_token(t) for t in tokens[:10]]
+              max_display = min(10, len(tokens))  # Show at most 10 tokens
+              debug_tokens = [debug_token(t) for t in tokens[:max_display]]
               token_debug_str = ", ".join(debug_tokens)
               
-              print(f"- Output tokens: {tokens[:10]}{['...'] if len(tokens) > 10 else []}")
-              print(f"- Output token representations: {token_debug_str}{' ...' if len(tokens) > 10 else ''}")
+              print(f"- Output tokens: {tokens[:max_display]}{['...'] if len(tokens) > max_display else []}")
+              print(f"- Output token representations: {token_debug_str}{' ...' if len(tokens) > max_display else ''}")
               print(f"- Output token count: {len(tokens)}")
+              
+              # For longer content, add summary information
+              if len(tokens) > 20:
+                  print(f"- Token distribution: first 10, last 10 = {tokens[:10]} ... {tokens[-10:]}")
+                  # Show a few tokens from the middle if the sequence is very long
+                  if len(tokens) > 30:
+                      middle_start = len(tokens) // 2 - 3
+                      print(f"- Middle tokens: {tokens[middle_start:middle_start+6]}")
               
               results[name] = {
                   'text': text,
@@ -333,7 +382,16 @@ jobs:
               "Special characters",
               "Multi-line text",
               "JSON structure",
-              "Code snippet"
+              "Code snippet",
+              "Long paragraph",
+              "Technical documentation",
+              "Programming code",
+              "JSON data",
+              "Markdown content",
+              "Mixed content",
+              "HTML content",
+              "URL with query parameters",
+              "Email thread"
           ]
           
           print("\nExpected differences in these test cases:")
@@ -436,8 +494,8 @@ jobs:
           
           # Detailed token count comparison for each test case
           print("\nDetailed Token Count Comparison:")
-          print(f"{'Test Case':<25} {'PHP':<8} {'Python':<8} {'Diff':<8} {'Diff%':<8} {'Efficiency':<10}")
-          print(f"{'-'*25} {'-'*8} {'-'*8} {'-'*8} {'-'*8} {'-'*10}")
+          print(f"{'Test Case':<30} {'PHP':<8} {'Python':<8} {'Diff':<8} {'Diff%':<8} {'Efficiency':<10}")
+          print(f"{'-'*30} {'-'*8} {'-'*8} {'-'*8} {'-'*8} {'-'*10}")
           
           for name in php_results:
               php_count = php_results[name]['token_count']
@@ -460,7 +518,7 @@ jobs:
               else:
                   color = "\033[31m"  # Red
               reset = "\033[0m"
-              print(f"{name:<25} {php_count:<8} {python_count:<8} {color}{diff:+d}{reset:<8} {color}{diff_pct:+.1f}%{reset:<8} {efficiency_str:<10}")
+              print(f"{name[:28]+'...' if len(name)>30 else name:<30} {php_count:<8} {python_count:<8} {color}{diff:+d}{reset:<8} {color}{diff_pct:+.1f}%{reset:<8} {efficiency_str:<10}")
           
           # Add a detailed analysis of the patterns we see
           print("\nComprehensive Analysis:")
@@ -472,13 +530,21 @@ jobs:
           print(f"- On average, PHP uses {mean_reduction:.2f}x more tokens than Python")
           
           # Find the test cases with biggest differences
-          differences = [(name, php_results[name]['token_count'] - python_results[name]['token_count']) for name in php_results]
-          differences.sort(key=lambda x: abs(x[1]), reverse=True)
+          differences = [(name, php_results[name]['token_count'] - python_results[name]['token_count'], php_results[name]['token_count'], python_results[name]['token_count']) for name in php_results]
+          # Sort by absolute difference
+          abs_differences = sorted(differences, key=lambda x: abs(x[1]), reverse=True)
+          # Sort by percentage difference
+          pct_differences = sorted(differences, key=lambda x: abs(x[1])/max(x[3], 1) * 100, reverse=True)
           
-          print("- Most significant differences:")
-          for name, diff in differences[:3]:  # Top 3 differences
-              diff_pct = (diff / python_results[name]['token_count']) * 100 if python_results[name]['token_count'] > 0 else 0
-              print(f"  - {name}: {diff:+d} tokens ({diff_pct:+.1f}%)")
+          print("- Most significant absolute token differences:")
+          for name, diff, php_count, python_count in abs_differences[:5]:  # Top 5 differences
+              diff_pct = (diff / python_count) * 100 if python_count > 0 else 0
+              print(f"  - {name[:28]+'...' if len(name)>30 else name}: {diff:+d} tokens ({diff_pct:+.1f}%)")
+              
+          print("\n- Most significant percentage differences:")
+          for name, diff, php_count, python_count in pct_differences[:5]:  # Top 5 differences
+              diff_pct = (diff / python_count) * 100 if python_count > 0 else 0
+              print(f"  - {name[:28]+'...' if len(name)>30 else name}: {diff:+d} tokens ({diff_pct:+.1f}%)")
           
           if all_match:
               print("\n✅ All test cases match between PHP and Python tokenizers!")
@@ -595,16 +661,19 @@ jobs:
       - name: Run PHP test generator
         run: |
           cd compatibility-test
+          echo "--- Running PHP tokenizer test generator with expanded test cases ---"
           php generate_test_cases.php
       
       - name: Run Python test generator
         run: |
           cd compatibility-test
+          echo "--- Running Python tokenizer test generator with expanded test cases ---"
           python generate_python_results.py
       
       - name: Compare results
         run: |
           cd compatibility-test
+          echo "--- Running comprehensive token comparison analysis ---"
           python compare_results.py
       
       - name: Upload compatibility test results
