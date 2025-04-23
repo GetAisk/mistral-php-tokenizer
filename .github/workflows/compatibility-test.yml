@@ -92,10 +92,12 @@ jobs:
           
           // Create PHP tokenizer - with explicit special token to match Python behavior
           $factory = new TokenizerFactory();
-          $tokenizer = $factory->getTekkenTokenizer('240911');
+          $tekkenVersion = '240911'; // Explicit model version
+          $tokenizer = $factory->getTekkenTokenizer($tekkenVersion);
           
           // Add debugging info about the tokenizer
           echo "PHP Tokenizer Info:\n";
+          echo "- Using model: tekken_{$tekkenVersion}.json\n";
           echo "- Version: " . $tokenizer->getVersion() . "\n";
           echo "- Vocab Size: " . $tokenizer->vocabSize() . "\n";
           echo "- Special Tokens: " . $tokenizer->getNumSpecialTokens() . "\n";
@@ -163,8 +165,16 @@ jobs:
           with open('test_cases.json', 'r') as f:
               test_cases = json.load(f)
           
-          # Create tokenizer (Tekken v3)
-          tokenizer = MistralTokenizer.v3(is_tekken=True)
+          # Create tokenizer (Tekken v3) - explicitly using the same model as PHP
+          from mistral_common.tokens.tokenizers import DEFAULT_MODEL_FILES
+          
+          # Print debug info about available model files
+          print("\nMistral common model files:")
+          for key, value in DEFAULT_MODEL_FILES.items():
+              print(f"- {key}: {value}")
+          
+          # Explicitly use the 240911 model to match PHP
+          tokenizer = MistralTokenizer.v3(is_tekken=True, is_mm=True)  # This will use tekken_240911.json
           
           # Import the Tekken tokenizer class directly to examine it
           from mistral_common.tokens.tokenizers.tekken import Tekkenizer
@@ -181,6 +191,7 @@ jobs:
           
           # Add debugging info about the tokenizer
           print("\nPython Tokenizer Info:")
+          print(f"- Model File: {tokenizer.instruct_tokenizer.model_file}")  # Show which model file is being used
           print(f"- Class: {tekken_tokenizer.__class__.__name__}")
           print(f"- Is Tekken: {getattr(tekken_tokenizer, 'is_tekken', None)}")
           print(f"- BOS ID: {tekken_tokenizer.bos_id}")
