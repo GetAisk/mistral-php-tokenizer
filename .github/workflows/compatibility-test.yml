@@ -137,7 +137,22 @@ jobs:
               // Use false for both BOS and EOS to match Python behavior
               $tokens = $tokenizer->encode($text, false, false);
               
+              // Create a more detailed token representation for debugging
+              $debugTokens = [];
+              foreach (array_slice($tokens, 0, 10) as $token) {
+                  try {
+                      // Try to decode the token to see what it represents
+                      $decoded = $tokenizer->decode([$token]);
+                      $escaped = addcslashes($decoded, "\n\r\t\v\f\0\"\\");
+                      $debugTokens[] = "$token ('$escaped')";
+                  } catch (Exception $e) {
+                      $debugTokens[] = "$token (?)";
+                  }
+              }
+              $tokenDebugStr = implode(", ", $debugTokens);
+              
               echo "- Output tokens: " . implode(", ", array_slice($tokens, 0, 10)) . (count($tokens) > 10 ? "..." : "") . "\n";
+              echo "- Output token representations: " . $tokenDebugStr . (count($tokens) > 10 ? "..." : "") . "\n";
               echo "- Output token count: " . count($tokens) . "\n";
               
               $results[$name] = [
@@ -219,6 +234,20 @@ jobs:
           print(f"- BOS ID: {tekken_tokenizer.bos_id}")
           print(f"- EOS ID: {tekken_tokenizer.eos_id}")
           
+          # Function to get a more helpful token representation
+          def debug_token(token_id):
+              # Try to decode the token to see what string it represents
+              try:
+                  token_bytes = tekken_tokenizer.decode([token_id])
+                  # Escape special characters for better display
+                  if token_bytes:
+                      escaped = repr(token_bytes)[1:-1]  # Remove the quotes from repr
+                      return f"{token_id} ('{escaped}')"
+                  else:
+                      return f"{token_id} ('')"
+              except:
+                  return f"{token_id} (?)"
+          
           # Try to extract and print more properties if available
           for attr_name in ["num_special_tokens", "vocab_size", "version"]:
               if hasattr(tekken_tokenizer, attr_name):
@@ -249,7 +278,12 @@ jobs:
               # Use the Tekkenizer directly to ensure accurate comparison
               tokens = tekken_tokenizer.encode(text, bos=False, eos=False)
               
+              # Create a list of token IDs with their string representation
+              debug_tokens = [debug_token(t) for t in tokens[:10]]
+              token_debug_str = ", ".join(debug_tokens)
+              
               print(f"- Output tokens: {tokens[:10]}{['...'] if len(tokens) > 10 else []}")
+              print(f"- Output token representations: {token_debug_str}{' ...' if len(tokens) > 10 else ''}")
               print(f"- Output token count: {len(tokens)}")
               
               results[name] = {
@@ -380,12 +414,71 @@ jobs:
                           abs(php['token_count'] - python['token_count']) / max(php['token_count'], python['token_count']) * 100
                   })
           
+          # Calculate total token count differences
+          php_total_tokens = sum(php_results[name]['token_count'] for name in php_results)
+          python_total_tokens = sum(python_results[name]['token_count'] for name in python_results)
+          total_diff = php_total_tokens - python_total_tokens
+          total_diff_pct = (total_diff / python_total_tokens) * 100 if python_total_tokens > 0 else 0
+          
           # Print statistics
           print("\nComparison Statistics:")
           print(f"- Total test cases: {total_cases}")
           print(f"- Exact token matches: {exact_token_matches}/{total_cases} ({exact_token_matches/total_cases*100:.1f}%)")
           print(f"- Exact token count matches: {exact_count_matches}/{total_cases} ({exact_count_matches/total_cases*100:.1f}%)")
           print(f"- Close token count matches (±2): {close_count_matches}/{total_cases} ({close_count_matches/total_cases*100:.1f}%)")
+          
+          # Print token count comparison summary
+          print("\nToken Count Comparison:")
+          print(f"- Total PHP tokens: {php_total_tokens}")
+          print(f"- Total Python tokens: {python_total_tokens}")
+          print(f"- Difference: {total_diff} tokens ({total_diff_pct:.1f}%)")
+          print(f"- Average difference per test case: {total_diff/total_cases:.1f} tokens")
+          
+          # Detailed token count comparison for each test case
+          print("\nDetailed Token Count Comparison:")
+          print(f"{'Test Case':<25} {'PHP':<8} {'Python':<8} {'Diff':<8} {'Diff%':<8} {'Efficiency':<10}")
+          print(f"{'-'*25} {'-'*8} {'-'*8} {'-'*8} {'-'*8} {'-'*10}")
+          
+          for name in php_results:
+              php_count = php_results[name]['token_count']
+              python_count = python_results[name]['token_count']
+              diff = php_count - python_count
+              diff_pct = (diff / python_count) * 100 if python_count > 0 else 0
+              
+              # Calculate Python tokenizer efficiency 
+              if php_count > 0 and python_count > 0:
+                  efficiency = python_count / php_count
+                  efficiency_str = f"{efficiency:.2f}x"
+              else:
+                  efficiency_str = "N/A"
+              
+              # Use colors for better readability - red for big differences, yellow for medium, green for small/none
+              if diff == 0:
+                  color = "\033[32m"  # Green
+              elif abs(diff) <= 2:
+                  color = "\033[33m"  # Yellow
+              else:
+                  color = "\033[31m"  # Red
+              reset = "\033[0m"
+              print(f"{name:<25} {php_count:<8} {python_count:<8} {color}{diff:+d}{reset:<8} {color}{diff_pct:+.1f}%{reset:<8} {efficiency_str:<10}")
+          
+          # Add a detailed analysis of the patterns we see
+          print("\nComprehensive Analysis:")
+          
+          # Calculate mean token reduction
+          with_tokens = [name for name in php_results if php_results[name]['token_count'] > 0 and python_results[name]['token_count'] > 0]
+          mean_reduction = sum([(php_results[name]['token_count'] / python_results[name]['token_count']) for name in with_tokens]) / len(with_tokens)
+          
+          print(f"- On average, PHP uses {mean_reduction:.2f}x more tokens than Python")
+          
+          # Find the test cases with biggest differences
+          differences = [(name, php_results[name]['token_count'] - python_results[name]['token_count']) for name in php_results]
+          differences.sort(key=lambda x: abs(x[1]), reverse=True)
+          
+          print("- Most significant differences:")
+          for name, diff in differences[:3]:  # Top 3 differences
+              diff_pct = (diff / python_results[name]['token_count']) * 100 if python_results[name]['token_count'] > 0 else 0
+              print(f"  - {name}: {diff:+d} tokens ({diff_pct:+.1f}%)")
           
           if all_match:
               print("\n✅ All test cases match between PHP and Python tokenizers!")
