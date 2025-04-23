@@ -34,6 +34,8 @@ jobs:
         run: |
           cd mistral-php-tokenizer
           composer install --prefer-dist --no-progress
+          # Verify the tiktoken library is installed
+          composer show | grep tiktoken
       
       - name: Set up Python
         uses: actions/setup-python@v4

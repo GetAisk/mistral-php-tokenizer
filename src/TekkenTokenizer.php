@@ -209,43 +209,54 @@ class TekkenTokenizer extends AbstractTokenizer
     /**
      * Get or initialize the tiktoken encoder
      * 
-     * @return \Tiktoken\Encoding The tiktoken encoder
+     * @return ?\Tiktoken\Encoding The tiktoken encoder or null if not available
      */
-    private function getTiktoken(): \Tiktoken\Encoding
+    private function getTiktoken(): ?\Tiktoken\Encoding
     {
+        // Check if tiktoken library is available
+        if (!class_exists('\\Tiktoken\\Encoding')) {
+            error_log('Tiktoken library not available. Falling back to simple BPE encoding.');
+            return null;
+        }
+        
         if ($this->tiktoken === null) {
-            // Create an explicit BPE encoder using our vocabulary and merges
-            $encoder = [];
-            $specialTokens = [];
-            
-            // Regular tokens
-            foreach ($this->tokenToId as $token => $id) {
-                $encoder[$token] = $id;
-            }
-            
-            // Special tokens - map them with their correct IDs
-            for ($i = 0; $i < $this->numSpecialTokens; $i++) {
-                if (isset($this->specialTokens[$i])) {
-                    $specialTokens[$this->specialTokens[$i]] = $i;
+            try {
+                // Create an explicit BPE encoder using our vocabulary and merges
+                $encoder = [];
+                $specialTokens = [];
+                
+                // Regular tokens
+                foreach ($this->tokenToId as $token => $id) {
+                    $encoder[$token] = $id;
                 }
-            }
-            
-            // Create mergeable ranks from our BPE merges
-            $mergeableRanks = [];
-            foreach ($this->bpeMerges as $rank => $pair) {
-                list($first, $second) = $pair;
-                $key = $first . $second;
-                if (isset($this->tokenToId[$key])) {
-                    $mergeableRanks[$first . $second] = $this->tokenToId[$key];
+                
+                // Special tokens - map them with their correct IDs
+                for ($i = 0; $i < $this->numSpecialTokens; $i++) {
+                    if (isset($this->specialTokens[$i])) {
+                        $specialTokens[$this->specialTokens[$i]] = $i;
+                    }
                 }
+                
+                // Create mergeable ranks from our BPE merges
+                $mergeableRanks = [];
+                foreach ($this->bpeMerges as $rank => $pair) {
+                    list($first, $second) = $pair;
+                    $key = $first . $second;
+                    if (isset($this->tokenToId[$key])) {
+                        $mergeableRanks[$first . $second] = $this->tokenToId[$key];
+                    }
+                }
+                
+                // Create the tiktoken encoder
+                $this->tiktoken = \Tiktoken\Encoding::fromMergeableRanks(
+                    $encoder,
+                    $mergeableRanks,
+                    $specialTokens
+                );
+            } catch (\Exception $e) {
+                error_log('Error initializing tiktoken: ' . $e->getMessage());
+                return null;
             }
-            
-            // Create the tiktoken encoder
-            $this->tiktoken = \Tiktoken\Encoding::fromMergeableRanks(
-                $encoder,
-                $mergeableRanks,
-                $specialTokens
-            );
         }
         
         return $this->tiktoken;
@@ -266,27 +277,30 @@ class TekkenTokenizer extends AbstractTokenizer
         // Normalize text if possible (match Python's NFKC normalization)
         $text = Utils::normalizeString($text);
         
-        try {
-            // Get the tiktoken encoder
-            $tiktoken = $this->getTiktoken();
-            
-            // Encode the text using tiktoken
-            $ids = $tiktoken->encode($text);
-            
-            // Add the special token offset to the IDs
-            foreach ($ids as &$id) {
-                // Only add offset to non-special tokens
-                if ($id >= 0 && !$this->isSpecialToken($id)) {
-                    $id += $this->numSpecialTokens;
+        // Get the tiktoken encoder (may be null if not available)
+        $tiktoken = $this->getTiktoken();
+        
+        if ($tiktoken !== null) {
+            try {
+                // Encode the text using tiktoken
+                $ids = $tiktoken->encode($text);
+                
+                // Add the special token offset to the IDs
+                foreach ($ids as &$id) {
+                    // Only add offset to non-special tokens
+                    if ($id >= 0 && !$this->isSpecialToken($id)) {
+                        $id += $this->numSpecialTokens;
+                    }
                 }
+                
+                return $ids;
+            } catch (\Exception $e) {
+                error_log("Tiktoken encoding error: " . $e->getMessage() . ". Falling back to simple encoding.");
             }
-            
-            return $ids;
-        } catch (\Exception $e) {
-            // Fall back to a simpler encoding in case of error
-            error_log("Tiktoken encoding error: " . $e->getMessage() . ". Falling back to simple encoding.");
-            return $this->simpleBpeEncode($text);
         }
+        
+        // Fall back to our simple BPE implementation
+        return $this->simpleBpeEncode($text);
     }
     
     /**
@@ -526,39 +540,42 @@ class TekkenTokenizer extends AbstractTokenizer
             return '';
         }
 
-        try {
-            // Try using tiktoken for decoding
-            $tiktoken = $this->getTiktoken();
-            
-            // Adjust token IDs before decoding
-            $adjustedTokens = [];
-            foreach ($tokens as $token) {
-                if ($this->isSpecialToken($token)) {
-                    // Handle special tokens based on policy
-                    switch ($specialTokenPolicy) {
-                        case self::SPECIAL_TOKEN_IGNORE:
-                            // Skip special tokens
-                            continue 2; // continue the outer foreach loop
-                        case self::SPECIAL_TOKEN_KEEP:
-                            // Keep special tokens as is
-                            $adjustedTokens[] = $token;
-                            break;
-                        case self::SPECIAL_TOKEN_RAISE:
-                            throw new \RuntimeException("Decoding tokens containing special tokens is not allowed.");
+        // Get the tiktoken encoder (may be null if not available)
+        $tiktoken = $this->getTiktoken();
+        
+        if ($tiktoken !== null) {
+            try {
+                // Adjust token IDs before decoding
+                $adjustedTokens = [];
+                foreach ($tokens as $token) {
+                    if ($this->isSpecialToken($token)) {
+                        // Handle special tokens based on policy
+                        switch ($specialTokenPolicy) {
+                            case self::SPECIAL_TOKEN_IGNORE:
+                                // Skip special tokens
+                                continue 2; // continue the outer foreach loop
+                            case self::SPECIAL_TOKEN_KEEP:
+                                // Keep special tokens as is
+                                $adjustedTokens[] = $token;
+                                break;
+                            case self::SPECIAL_TOKEN_RAISE:
+                                throw new \RuntimeException("Decoding tokens containing special tokens is not allowed.");
+                        }
+                    } else {
+                        // Adjust regular token IDs by removing special token offset
+                        $adjustedTokens[] = $token - $this->numSpecialTokens;
                     }
-                } else {
-                    // Adjust regular token IDs by removing special token offset
-                    $adjustedTokens[] = $token - $this->numSpecialTokens;
                 }
+                
+                // Use tiktoken to decode
+                return $tiktoken->decode($adjustedTokens);
+            } catch (\Exception $e) {
+                error_log("Tiktoken decoding error: " . $e->getMessage() . ". Falling back to simple decoding.");
             }
-            
-            // Use tiktoken to decode
-            return $tiktoken->decode($adjustedTokens);
-        } catch (\Exception $e) {
-            // Fall back to our simple decoder
-            error_log("Tiktoken decoding error: " . $e->getMessage() . ". Falling back to simple decoding.");
-            return $this->simpleDecodeTokens($tokens, $specialTokenPolicy);
         }
+        
+        // Fall back to our simple decoder
+        return $this->simpleDecodeTokens($tokens, $specialTokenPolicy);
     }
     
     /**
