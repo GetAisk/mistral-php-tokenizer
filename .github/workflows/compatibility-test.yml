@@ -46,6 +46,10 @@ jobs:
           cd mistral-common
           pip install poetry
           poetry install
+          # Install mistral-common package in development mode
+          pip install -e .
+          # Verify installation
+          python -c "import mistral_common; print(f'Successfully imported mistral_common version {mistral_common.__version__}')"
       
       - name: Copy test fixtures
         run: |
@@ -106,10 +110,28 @@ jobs:
           import sys
           import os
           
-          # Add mistral_common module to path
-          sys.path.append(os.path.abspath('../mistral-common'))
-          
-          from mistral_common.tokens.tokenizers.mistral import MistralTokenizer
+          # Try multiple approaches to import the mistral_common module
+          try:
+              # First attempt: direct import if installed with pip install -e .
+              from mistral_common.tokens.tokenizers.mistral import MistralTokenizer
+          except ImportError:
+              # Second attempt: add the parent directory to path
+              sys.path.append(os.path.abspath('../mistral-common'))
+              # Also add the src directory
+              sys.path.append(os.path.abspath('../mistral-common/src'))
+              
+              try:
+                  from mistral_common.tokens.tokenizers.mistral import MistralTokenizer
+              except ImportError:
+                  print("ERROR: Could not import mistral_common. Here are the directories in the path:")
+                  for p in sys.path:
+                      print(f"  - {p}")
+                  print("\nAnd here are the files in ../mistral-common:")
+                  os.system("ls -la ../mistral-common")
+                  print("\nAnd here are the files in ../mistral-common/src:")
+                  os.system("ls -la ../mistral-common/src")
+                  print("\nTrying to import the module directly by file path...")
+                  sys.exit(1)
           
           # Load test cases
           with open('test_cases.json', 'r') as f:
