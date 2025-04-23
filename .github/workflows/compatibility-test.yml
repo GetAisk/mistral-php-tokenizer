@@ -212,7 +212,7 @@ jobs:
       
       - name: Upload compatibility test results
         if: always()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: compatibility-test-results
           path: |
