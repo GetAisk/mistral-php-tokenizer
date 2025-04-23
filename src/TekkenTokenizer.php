@@ -202,7 +202,57 @@ class TekkenTokenizer extends AbstractTokenizer
     }
     
     /**
-     * Byte-pair encoding algorithm implementation
+     * @var \Tiktoken\Encoding|null The tiktoken encoder
+     */
+    private ?\Tiktoken\Encoding $tiktoken = null;
+    
+    /**
+     * Get or initialize the tiktoken encoder
+     * 
+     * @return \Tiktoken\Encoding The tiktoken encoder
+     */
+    private function getTiktoken(): \Tiktoken\Encoding
+    {
+        if ($this->tiktoken === null) {
+            // Create an explicit BPE encoder using our vocabulary and merges
+            $encoder = [];
+            $specialTokens = [];
+            
+            // Regular tokens
+            foreach ($this->tokenToId as $token => $id) {
+                $encoder[$token] = $id;
+            }
+            
+            // Special tokens - map them with their correct IDs
+            for ($i = 0; $i < $this->numSpecialTokens; $i++) {
+                if (isset($this->specialTokens[$i])) {
+                    $specialTokens[$this->specialTokens[$i]] = $i;
+                }
+            }
+            
+            // Create mergeable ranks from our BPE merges
+            $mergeableRanks = [];
+            foreach ($this->bpeMerges as $rank => $pair) {
+                list($first, $second) = $pair;
+                $key = $first . $second;
+                if (isset($this->tokenToId[$key])) {
+                    $mergeableRanks[$first . $second] = $this->tokenToId[$key];
+                }
+            }
+            
+            // Create the tiktoken encoder
+            $this->tiktoken = \Tiktoken\Encoding::fromMergeableRanks(
+                $encoder,
+                $mergeableRanks,
+                $specialTokens
+            );
+        }
+        
+        return $this->tiktoken;
+    }
+    
+    /**
+     * Byte-pair encoding algorithm implementation using tiktoken
      * 
      * @param string $text The text to tokenize
      * @return array<int> The token IDs
@@ -213,6 +263,40 @@ class TekkenTokenizer extends AbstractTokenizer
             return [];
         }
         
+        // Normalize text if possible (match Python's NFKC normalization)
+        $text = Utils::normalizeString($text);
+        
+        try {
+            // Get the tiktoken encoder
+            $tiktoken = $this->getTiktoken();
+            
+            // Encode the text using tiktoken
+            $ids = $tiktoken->encode($text);
+            
+            // Add the special token offset to the IDs
+            foreach ($ids as &$id) {
+                // Only add offset to non-special tokens
+                if ($id >= 0 && !$this->isSpecialToken($id)) {
+                    $id += $this->numSpecialTokens;
+                }
+            }
+            
+            return $ids;
+        } catch (\Exception $e) {
+            // Fall back to a simpler encoding in case of error
+            error_log("Tiktoken encoding error: " . $e->getMessage() . ". Falling back to simple encoding.");
+            return $this->simpleBpeEncode($text);
+        }
+    }
+    
+    /**
+     * Simple BPE encoding as fallback
+     * 
+     * @param string $text The text to tokenize
+     * @return array<int> The token IDs
+     */
+    private function simpleBpeEncode(string $text): array
+    {
         // Convert string to UTF-8 bytes
         $bytes = Utils::stringToBytes($text);
         
@@ -427,20 +511,85 @@ class TekkenTokenizer extends AbstractTokenizer
     }
 
     /**
+     * Special token policy for decoding
+     */
+    public const SPECIAL_TOKEN_IGNORE = 0;
+    public const SPECIAL_TOKEN_KEEP = 1;
+    public const SPECIAL_TOKEN_RAISE = 2;
+    
+    /**
      * @inheritDoc
      */
-    public function decode(array $tokens): string
+    public function decode(array $tokens, int $specialTokenPolicy = self::SPECIAL_TOKEN_IGNORE): string
     {
         if (empty($tokens)) {
             return '';
         }
 
+        try {
+            // Try using tiktoken for decoding
+            $tiktoken = $this->getTiktoken();
+            
+            // Adjust token IDs before decoding
+            $adjustedTokens = [];
+            foreach ($tokens as $token) {
+                if ($this->isSpecialToken($token)) {
+                    // Handle special tokens based on policy
+                    switch ($specialTokenPolicy) {
+                        case self::SPECIAL_TOKEN_IGNORE:
+                            // Skip special tokens
+                            continue 2; // continue the outer foreach loop
+                        case self::SPECIAL_TOKEN_KEEP:
+                            // Keep special tokens as is
+                            $adjustedTokens[] = $token;
+                            break;
+                        case self::SPECIAL_TOKEN_RAISE:
+                            throw new \RuntimeException("Decoding tokens containing special tokens is not allowed.");
+                    }
+                } else {
+                    // Adjust regular token IDs by removing special token offset
+                    $adjustedTokens[] = $token - $this->numSpecialTokens;
+                }
+            }
+            
+            // Use tiktoken to decode
+            return $tiktoken->decode($adjustedTokens);
+        } catch (\Exception $e) {
+            // Fall back to our simple decoder
+            error_log("Tiktoken decoding error: " . $e->getMessage() . ". Falling back to simple decoding.");
+            return $this->simpleDecodeTokens($tokens, $specialTokenPolicy);
+        }
+    }
+    
+    /**
+     * Simple fallback decoder in case tiktoken is not available or fails
+     * 
+     * @param array<int> $tokens The token IDs to decode
+     * @param int $specialTokenPolicy How to handle special tokens
+     * @return string The decoded text
+     */
+    private function simpleDecodeTokens(array $tokens, int $specialTokenPolicy): string
+    {
         $result = '';
         
         foreach ($tokens as $token) {
             if ($this->isSpecialToken($token)) {
-                // Skip special tokens
-                continue;
+                // Handle special tokens based on policy
+                switch ($specialTokenPolicy) {
+                    case self::SPECIAL_TOKEN_IGNORE:
+                        // Skip special tokens
+                        continue 2; // continue the outer foreach loop
+                    case self::SPECIAL_TOKEN_KEEP:
+                        // Add the special token name if available
+                        if (isset($this->specialTokens[$token])) {
+                            $result .= $this->specialTokens[$token];
+                        } else {
+                            $result .= "<SPECIAL_{$token}>";
+                        }
+                        break;
+                    case self::SPECIAL_TOKEN_RAISE:
+                        throw new \RuntimeException("Decoding tokens containing special tokens is not allowed.");
+                }
             } else {
                 $tokenId = $token - $this->numSpecialTokens;
                 
@@ -465,5 +614,48 @@ class TekkenTokenizer extends AbstractTokenizer
     public function getBpeMerges(): array
     {
         return $this->bpeMerges;
+    }
+    
+    /**
+     * Convert a list of token IDs to their string representation
+     * 
+     * @param array<int> $tokens Token IDs to convert
+     * @return string String representation of the tokens with special tokens included
+     */
+    public function toString(array $tokens): string
+    {
+        return $this->decode($tokens, self::SPECIAL_TOKEN_KEEP);
+    }
+    
+    /**
+     * Convert a token ID to its piece (string representation)
+     * 
+     * @param int $tokenId Token ID to convert
+     * @return string The piece (string representation)
+     */
+    public function idToPiece(int $tokenId): string
+    {
+        if ($this->isSpecialToken($tokenId)) {
+            return $this->specialTokens[$tokenId] ?? "<SPECIAL_{$tokenId}>";
+        } else {
+            $id = $tokenId - $this->numSpecialTokens;
+            return $this->idToToken[$id] ?? chr($id);
+        }
+    }
+    
+    /**
+     * Check if a token ID represents a byte token
+     * 
+     * @param int $tokenId Token ID to check
+     * @return bool True if the token ID represents a byte
+     */
+    public function isByte(int $tokenId): bool
+    {
+        if ($this->isSpecialToken($tokenId)) {
+            return false;
+        }
+        
+        $id = $tokenId - $this->numSpecialTokens;
+        return $id >= 0 && $id < 256;
     }
 }
