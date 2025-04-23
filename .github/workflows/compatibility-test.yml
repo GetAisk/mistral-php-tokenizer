@@ -148,14 +148,11 @@ jobs:
           import json
           import os
           
-          # Load the actual tekken model used by the PHP code
-          php_tekken_model_path = os.path.abspath('../mistral-php-tokenizer/data/tekken_240911.json')
-          print(f"Loading PHP tekken model from: {php_tekken_model_path}")
-          with open(php_tekken_model_path, 'r') as f:
-              config = json.load(f)
+          # Instead of trying to load the PHP model, let's use the Python model directly
+          # since the class interfaces are different between PHP and Python
           
-          # Create a Tekkenizer with the same config as PHP
-          tekken_tokenizer = Tekkenizer(config)
+          # Just use the MistralTokenizer's underlying tokenizer, which is already properly initialized
+          tekken_tokenizer = tokenizer.instruct_tokenizer.tokenizer
           
           # Tokenize test cases
           results = {}
