@@ -145,7 +145,6 @@ jobs:
           from mistral_common.tokens.tokenizers.tekken import Tekkenizer
           
           # Load the model directly with the same model file used by PHP
-          from mistral_common.tokens.tokenizers.tekken import DEFAULT_MODEL_FILES
           import json
           import os
           
