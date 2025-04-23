@@ -92,7 +92,14 @@ The package includes a command line tool for tokenizing text:
 
 ## Implementation Notes
 
-This implementation provides a simplified tokenizer for Mistral models. The current version uses a character-based tokenization for testing purposes. In a production environment, you would need to implement the full BPE algorithm with the model's merges.
+This implementation provides a full Byte Pair Encoding (BPE) tokenizer for Mistral models. It includes:
+
+1. Automatic construction of BPE merges from vocabulary
+2. Efficient implementation of the BPE algorithm
+3. Proper handling of special tokens
+4. Fallback to character-based tokenization for testing purposes when no vocabulary is available
+
+The tokenizer automatically builds the BPE merge table from the vocabulary, identifying which token pairs should be merged in which order based on their priority in the vocabulary.
 
 ## Testing
 

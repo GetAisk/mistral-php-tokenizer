@@ -29,17 +29,19 @@ interface TokenizerInterface
      * Decode a list of tokens into a string
      *
      * @param array<int> $tokens The token IDs to decode
+     * @param int $specialTokenPolicy How to handle special tokens (0=ignore, 1=keep, 2=raise)
      * @return string The decoded text
      */
-    public function decode(array $tokens): string;
+    public function decode(array $tokens, int $specialTokenPolicy = 0): string;
 
     /**
      * Decode a batch of lists of tokens into a list of strings
      *
      * @param array<array<int>> $tokensBatch The batch of token IDs to decode
+     * @param int $specialTokenPolicy How to handle special tokens (0=ignore, 1=keep, 2=raise)
      * @return array<string> The decoded texts
      */
-    public function decodeBatch(array $tokensBatch): array;
+    public function decodeBatch(array $tokensBatch, int $specialTokenPolicy = 0): array;
 
     /**
      * Get the vocabulary size of the tokenizer

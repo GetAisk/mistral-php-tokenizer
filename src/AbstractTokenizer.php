@@ -18,9 +18,9 @@ abstract class AbstractTokenizer implements TokenizerInterface
     /**
      * @inheritDoc
      */
-    public function decodeBatch(array $tokensBatch): array
+    public function decodeBatch(array $tokensBatch, int $specialTokenPolicy = 0): array
     {
-        return array_map(fn (array $tokens) => $this->decode($tokens), $tokensBatch);
+        return array_map(fn (array $tokens) => $this->decode($tokens, $specialTokenPolicy), $tokensBatch);
     }
 
     /**
