@@ -190,8 +190,11 @@ jobs:
           
           # Add debugging info about the tokenizer
           print("\nPython Tokenizer Info:")
-          print(f"- Model File: {tokenizer.instruct_tokenizer.model_file}")  # Show which model file is being used
-          print(f"- Class: {tekken_tokenizer.__class__.__name__}")
+          print(f"- Tokenizer Class: {tokenizer.__class__.__name__}")
+          print(f"- InstructTokenizer Class: {tokenizer.instruct_tokenizer.__class__.__name__}")
+          
+          # Print more details about the underlying tokenizer
+          print(f"- Tekken Tokenizer Class: {tekken_tokenizer.__class__.__name__}")
           print(f"- Is Tekken: {getattr(tekken_tokenizer, 'is_tekken', None)}")
           print(f"- BOS ID: {tekken_tokenizer.bos_id}")
           print(f"- EOS ID: {tekken_tokenizer.eos_id}")
