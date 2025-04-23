@@ -143,7 +143,9 @@ jobs:
           # Tokenize test cases
           results = {}
           for name, text in test_cases.items():
-              tokens = tokenizer.encode(text, add_bos=False, add_eos=False)
+              # Access the underlying tokenizer to encode text
+              # MistralTokenizer doesn't have encode method directly
+              tokens = tokenizer.instruct_tokenizer.tokenizer.encode(text, add_bos=False, add_eos=False)
               results[name] = {
                   'text': text,
                   'tokens': tokens,
