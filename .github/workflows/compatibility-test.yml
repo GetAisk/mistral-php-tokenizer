@@ -88,11 +88,30 @@ jobs:
           $factory = new TokenizerFactory();
           $tokenizer = $factory->getTekkenTokenizer('240911');
           
+          // Add debugging info about the tokenizer
+          echo "PHP Tokenizer Info:\n";
+          echo "- Version: " . $tokenizer->getVersion() . "\n";
+          echo "- Vocab Size: " . $tokenizer->vocabSize() . "\n";
+          echo "- Special Tokens: " . $tokenizer->getNumSpecialTokens() . "\n";
+          echo "- BOS ID: " . $tokenizer->bosId() . "\n";
+          echo "- EOS ID: " . $tokenizer->eosId() . "\n";
+          echo "- PAD ID: " . $tokenizer->padId() . "\n";
+          echo "- UNK ID: " . $tokenizer->unkId() . "\n";
+          
           // Tokenize test cases - making sure to use the same parameters as the Python tokenizer
           $results = [];
           foreach ($testCases as $name => $text) {
+              // Add debug info about the test case
+              echo "\nProcessing test case: '$name'\n";
+              echo "- Input text: " . (strlen($text) > 20 ? substr($text, 0, 20) . "..." : $text) . "\n";
+              echo "- Input length: " . strlen($text) . " bytes\n";
+              
               // Use false for both BOS and EOS to match Python behavior
               $tokens = $tokenizer->encode($text, false, false);
+              
+              echo "- Output tokens: " . implode(", ", array_slice($tokens, 0, 10)) . (count($tokens) > 10 ? "..." : "") . "\n";
+              echo "- Output token count: " . count($tokens) . "\n";
+              
               $results[$name] = [
                   'text' => $text,
                   'tokens' => $tokens,
@@ -154,11 +173,46 @@ jobs:
           # Just use the MistralTokenizer's underlying tokenizer, which is already properly initialized
           tekken_tokenizer = tokenizer.instruct_tokenizer.tokenizer
           
+          # Add debugging info about the tokenizer
+          print("\nPython Tokenizer Info:")
+          print(f"- Class: {tekken_tokenizer.__class__.__name__}")
+          print(f"- Is Tekken: {getattr(tekken_tokenizer, 'is_tekken', None)}")
+          print(f"- BOS ID: {tekken_tokenizer.bos_id}")
+          print(f"- EOS ID: {tekken_tokenizer.eos_id}")
+          
+          # Try to extract and print more properties if available
+          for attr_name in ["num_special_tokens", "vocab_size", "version"]:
+              if hasattr(tekken_tokenizer, attr_name):
+                  print(f"- {attr_name.replace('_', ' ').title()}: {getattr(tekken_tokenizer, attr_name)}")
+          
+          # Print the first few vocab entries if available
+          if hasattr(tekken_tokenizer, "_model"):
+              try:
+                  print(f"- Vocab size from model: {len(tekken_tokenizer._model.encoder)}")
+                  print("- First 5 vocab entries:")
+                  for i, (k, v) in enumerate(list(tekken_tokenizer._model.encoder.items())[:5]):
+                      try:
+                          k_repr = k.decode('utf-8', errors='replace')
+                      except:
+                          k_repr = repr(k)
+                      print(f"  - {k_repr}: {v}")
+              except Exception as e:
+                  print(f"- Error accessing vocab: {e}")
+          
           # Tokenize test cases
           results = {}
           for name, text in test_cases.items():
+              # Add debug info about the test case
+              print(f"\nProcessing test case: '{name}'")
+              print(f"- Input text: {text[:20] + '...' if len(text) > 20 else text}")
+              print(f"- Input length: {len(text.encode('utf-8'))} bytes")
+              
               # Use the Tekkenizer directly to ensure accurate comparison
               tokens = tekken_tokenizer.encode(text, bos=False, eos=False)
+              
+              print(f"- Output tokens: {tokens[:10]}{['...'] if len(tokens) > 10 else []}")
+              print(f"- Output token count: {len(tokens)}")
+              
               results[name] = {
                   'text': text,
                   'tokens': tokens,
@@ -184,6 +238,14 @@ jobs:
               python_results = json.load(f)
           
           # Compare results - with some tolerance for specific test cases
+          print("\n" + "=" * 50)
+          print("BEGINNING COMPARISON ANALYSIS")
+          print("=" * 50)
+          
+          print("\nLoaded results:")
+          print(f"- PHP results contains {len(php_results)} test cases")
+          print(f"- Python results contains {len(python_results)} test cases")
+          
           all_match = True
           mismatches = []
           
@@ -201,6 +263,16 @@ jobs:
               "Code snippet"
           ]
           
+          print("\nExpected differences in these test cases:")
+          for case in expected_differences:
+              print(f"- {case}")
+          
+          # Track statistics
+          total_cases = len(php_results)
+          exact_token_matches = 0
+          exact_count_matches = 0
+          close_count_matches = 0
+          
           for name in php_results:
               php = php_results[name]
               python = python_results[name]
@@ -211,14 +283,49 @@ jobs:
               count_match = php['token_count'] == python['token_count']
               count_close = abs(php['token_count'] - python['token_count']) <= 2
               
+              # Update statistics
+              if tokens_match:
+                  exact_token_matches += 1
+              if count_match:
+                  exact_count_matches += 1
+              elif count_close:
+                  close_count_matches += 1
+              
               # If this is an "expected difference" case, count close as a match
               is_expected_difference = name in expected_differences
+              
+              print(f"\nAnalyzing test case: '{name}'")
+              print(f"- Tokens match exactly: {tokens_match}")
+              print(f"- Token count match exactly: {count_match}")
+              print(f"- Token count close (±2): {count_close}")
+              print(f"- Expected difference: {is_expected_difference}")
+              
+              if not tokens_match:
+                  # Find first difference in tokens
+                  min_len = min(len(php['tokens']), len(python['tokens']))
+                  first_diff_index = None
+                  for i in range(min_len):
+                      if php['tokens'][i] != python['tokens'][i]:
+                          first_diff_index = i
+                          break
+                  
+                  if first_diff_index is not None:
+                      php_context = php['tokens'][max(0, first_diff_index-2):first_diff_index+3]
+                      python_context = python['tokens'][max(0, first_diff_index-2):first_diff_index+3]
+                      print(f"- First difference at position {first_diff_index}")
+                      print(f"  PHP tokens around diff: {php_context}")
+                      print(f"  Python tokens around diff: {python_context}")
+                  else:
+                      print(f"- One tokenization is a prefix of the other")
               
               # For expected differences, we don't fail the test, but still report
               if not tokens_match or not count_match:
                   # Only fail the test for non-expected differences that also don't have close counts
                   if not is_expected_difference and not count_close:
                       all_match = False
+                      print(f"- ❌ This difference will cause the test to fail")
+                  else:
+                      print(f"- ⚠️ This is an acceptable difference")
                   
                   mismatches.append({
                       'name': name,
@@ -229,22 +336,30 @@ jobs:
                       'php_tokens': php['tokens'][:10],
                       'python_tokens': python['tokens'][:10],
                       'php_count': php['token_count'],
-                      'python_count': python['token_count']
+                      'python_count': python['token_count'],
+                      'token_diff_pct': None if min(php['token_count'], python['token_count']) == 0 else
+                          abs(php['token_count'] - python['token_count']) / max(php['token_count'], python['token_count']) * 100
                   })
           
-          # Print results
-          print(f"\n{'=' * 50}")
-          print(f"COMPATIBILITY TEST RESULTS")
-          print(f"{'=' * 50}")
+          # Print statistics
+          print("\nComparison Statistics:")
+          print(f"- Total test cases: {total_cases}")
+          print(f"- Exact token matches: {exact_token_matches}/{total_cases} ({exact_token_matches/total_cases*100:.1f}%)")
+          print(f"- Exact token count matches: {exact_count_matches}/{total_cases} ({exact_count_matches/total_cases*100:.1f}%)")
+          print(f"- Close token count matches (±2): {close_count_matches}/{total_cases} ({close_count_matches/total_cases*100:.1f}%)")
           
           if all_match:
-              print("✅ All test cases match between PHP and Python tokenizers!")
+              print("\n✅ All test cases match between PHP and Python tokenizers!")
               sys.exit(0)
           else:
-              print(f"❌ Found {len(mismatches)} mismatching test cases:")
+              print(f"\nFound {len(mismatches)} mismatching test cases")
               
               critical_mismatches = [m for m in mismatches if not m['is_expected_difference'] and not m['count_close']]
               expected_mismatches = [m for m in mismatches if m['is_expected_difference'] or m['count_close']]
+              
+              # Sort mismatches by difference percentage
+              critical_mismatches.sort(key=lambda m: m['token_diff_pct'] if m['token_diff_pct'] is not None else 0, reverse=True)
+              expected_mismatches.sort(key=lambda m: m['token_diff_pct'] if m['token_diff_pct'] is not None else 0, reverse=True)
               
               if critical_mismatches:
                   print(f"\n❌ CRITICAL MISMATCHES ({len(critical_mismatches)}):")
@@ -255,28 +370,86 @@ jobs:
                       print(f"  Count close: {'✅' if mismatch['count_close'] else '❌'}")
                       
                       if not mismatch['tokens_match']:
-                          print(f"  PHP tokens (first 10): {mismatch['php_tokens']}")
-                          print(f"  Python tokens (first 10): {mismatch['python_tokens']}")
+                          php_tokens = mismatch['php_tokens']
+                          python_tokens = mismatch['python_tokens']
+                          
+                          print(f"  PHP tokens (first 10): {php_tokens}")
+                          print(f"  Python tokens (first 10): {python_tokens}")
+                          
+                          # Show the differences between token lists
+                          min_len = min(len(php_tokens), len(python_tokens))
+                          matching_prefix_len = 0
+                          for i in range(min_len):
+                              if php_tokens[i] == python_tokens[i]:
+                                  matching_prefix_len += 1
+                              else:
+                                  break
+                                  
+                          if matching_prefix_len > 0:
+                              print(f"  First {matching_prefix_len} tokens match exactly")
+                          
+                          if matching_prefix_len < min_len:
+                              print(f"  First difference at position {matching_prefix_len}:")
+                              print(f"    PHP token: {php_tokens[matching_prefix_len] if matching_prefix_len < len(php_tokens) else 'N/A'}")
+                              print(f"    Python token: {python_tokens[matching_prefix_len] if matching_prefix_len < len(python_tokens) else 'N/A'}")
                       
                       if not mismatch['count_match']:
-                          print(f"  PHP count: {mismatch['php_count']}")
-                          print(f"  Python count: {mismatch['python_count']}")
+                          php_count = mismatch['php_count']
+                          python_count = mismatch['python_count']
+                          diff = abs(php_count - python_count)
+                          diff_pct = mismatch['token_diff_pct']
+                          
+                          print(f"  PHP count: {php_count}")
+                          print(f"  Python count: {python_count}")
+                          print(f"  Difference: {diff} tokens ({diff_pct:.1f}%)")
               
               if expected_mismatches:
                   print(f"\n⚠️ EXPECTED DIFFERENCES ({len(expected_mismatches)}):")
-                  for mismatch in expected_mismatches:
-                      print(f"\nTest: {mismatch['name']}")
-                      print(f"  Tokens match: {'✅' if mismatch['tokens_match'] else '❌'}")
-                      print(f"  Count match: {'✅' if mismatch['count_match'] else '❌'}")
-                      print(f"  Count close: {'✅' if mismatch['count_close'] else '❌'}")
-                      
-                      if not mismatch['tokens_match']:
-                          print(f"  PHP tokens (first 10): {mismatch['php_tokens']}")
-                          print(f"  Python tokens (first 10): {mismatch['python_tokens']}")
-                      
-                      if not mismatch['count_match']:
-                          print(f"  PHP count: {mismatch['php_count']}")
-                          print(f"  Python count: {mismatch['python_count']}")
+                  
+                  # Group by difference percentage
+                  severe_diff = [m for m in expected_mismatches if m['token_diff_pct'] is not None and m['token_diff_pct'] > 30]
+                  moderate_diff = [m for m in expected_mismatches if m['token_diff_pct'] is not None and 10 < m['token_diff_pct'] <= 30]
+                  minor_diff = [m for m in expected_mismatches if m['token_diff_pct'] is None or m['token_diff_pct'] <= 10]
+                  
+                  print(f"  Severe differences (>30%): {len(severe_diff)}")
+                  print(f"  Moderate differences (10-30%): {len(moderate_diff)}")
+                  print(f"  Minor differences (≤10%): {len(minor_diff)}")
+                  
+                  # Print detailed info for severe differences
+                  if severe_diff:
+                      print("\n  SEVERE DIFFERENCES:")
+                      for mismatch in severe_diff:
+                          print(f"  - {mismatch['name']}: PHP={mismatch['php_count']}, Python={mismatch['python_count']}, Diff={mismatch['token_diff_pct']:.1f}%")
+                  
+                  # Print summary for moderate differences
+                  if moderate_diff:
+                      print("\n  MODERATE DIFFERENCES:")
+                      for mismatch in moderate_diff:
+                          print(f"  - {mismatch['name']}: Diff={mismatch['token_diff_pct']:.1f}%")
+                  
+                  # Just count minor differences
+                  if minor_diff:
+                      print(f"\n  MINOR DIFFERENCES: {', '.join([m['name'] for m in minor_diff])}")
+              
+              # Add compatibility recommendation
+              print("\nCOMPATIBILITY RECOMMENDATIONS:")
+              if critical_mismatches:
+                  print("❌ Critical mismatches found. The PHP tokenizer needs significant improvements to be compatible with Python.")
+                  print("   Focus on fixing these critical test cases first:")
+                  for m in critical_mismatches[:3]:  # Show top 3
+                      print(f"   - {m['name']}")
+              elif severe_diff:
+                  print("⚠️ No critical mismatches but severe differences found.")
+                  print("   Consider improving these cases to enhance compatibility:")
+                  for m in severe_diff[:3]:  # Show top 3
+                      print(f"   - {m['name']}")
+              elif moderate_diff:
+                  print("ℹ️ Only moderate differences found. Basic compatibility achieved.")
+                  print("   Further improvements possible in:")
+                  for m in moderate_diff[:3]:  # Show top 3
+                      print(f"   - {m['name']}")
+              else:
+                  print("✅ Good compatibility achieved! Only minor differences remain.")
               
               # Exit with error code if we have critical mismatches
               if critical_mismatches:
