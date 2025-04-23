@@ -7,14 +7,17 @@ namespace Aisk\Tokenizer;
  */
 class TekkenTokenizer extends AbstractTokenizer
 {
-    /** @var array<string, int> The vocabulary mapping from token to ID */
+    /** @var array<string, int> The vocabulary mapping from token bytes to ID */
     private array $tokenToId;
 
-    /** @var array<int, string> The vocabulary mapping from ID to token */
+    /** @var array<int, string> The vocabulary mapping from ID to token bytes */
     private array $idToToken;
 
     /** @var string Regex pattern for BPE tokenization */
     private string $pattern;
+
+    /** @var array<array{string, string}> BPE merges sorted by priority */
+    private array $bpeMerges = [];
 
     /** @var int The vocabulary size */
     private int $vocabSize;
@@ -87,23 +90,37 @@ class TekkenTokenizer extends AbstractTokenizer
         $version = $config['version'] ?? 'v3';
 
         // Extract vocabulary
-        $vocab = isset($data['vocab']) ? $data['vocab'] : [];
+        $vocabInfo = $data['vocab'] ?? [];
+        $tokenToId = [];
+        $merges = [];
         
-        // For testing purposes, we can use a simplified implementation
-        // In a production environment, you would need to properly implement the encoding logic
-        return new self(
-            [], // tokenToId - simplified for now
+        foreach ($vocabInfo as $info) {
+            $tokenBytes = base64_decode($info['token_bytes']);
+            $tokenId = $info['rank'];
+            
+            // Store the token bytes to ID mapping
+            $tokenToId[$tokenBytes] = $tokenId;
+        }
+        
+        // Create the instance
+        $tokenizer = new self(
+            $tokenToId,
             $pattern,
             $vocabSize,
             $numSpecialTokens,
             $version
         );
+        
+        // Build BPE merges
+        $tokenizer->buildBpeMerges();
+        
+        return $tokenizer;
     }
 
     /**
      * Create a new TekkenTokenizer
      *
-     * @param array<string, int> $tokenToId The vocabulary mapping
+     * @param array<string, int> $tokenToId The vocabulary mapping from token bytes to ID
      * @param string $pattern The regex pattern for tokenization
      * @param int $vocabSize The vocabulary size
      * @param int $numSpecialTokens The number of special tokens
@@ -121,8 +138,11 @@ class TekkenTokenizer extends AbstractTokenizer
         $this->vocabSize = $vocabSize;
         $this->version = $version;
         
-        // In a real implementation, we'd create the idToToken map
-        $this->idToToken = array_flip($tokenToId);
+        // Create the idToToken map
+        $this->idToToken = [];
+        foreach ($this->tokenToId as $token => $id) {
+            $this->idToToken[$id] = $token;
+        }
         
         // Handle special tokens
         $this->specialTokens = self::SPECIAL_TOKENS;
@@ -133,6 +153,141 @@ class TekkenTokenizer extends AbstractTokenizer
         $this->eosId = 2; // </s>
         $this->padId = 11; // <pad>
         $this->unkId = 0; // <unk>
+    }
+
+    /**
+     * Build BPE merges from the vocabulary
+     */
+    public function buildBpeMerges(): void
+    {
+        // Skip tokens that correspond to single bytes (0-255)
+        $mergeableTokens = [];
+        foreach ($this->tokenToId as $token => $id) {
+            if (strlen($token) > 1) {
+                $mergeableTokens[$token] = $id;
+            }
+        }
+        
+        // For each mergeable token, find the pair of tokens that could have been merged to create it
+        $merges = [];
+        foreach ($mergeableTokens as $token => $id) {
+            // Try all possible splits
+            for ($i = 1; $i < strlen($token); $i++) {
+                $first = substr($token, 0, $i);
+                $second = substr($token, $i);
+                
+                // Check if both parts are in our vocabulary
+                if (isset($this->tokenToId[$first]) && isset($this->tokenToId[$second])) {
+                    // Add this merge with its priority (lower rank = higher priority)
+                    $merges[] = [
+                        'first' => $first, 
+                        'second' => $second, 
+                        'result' => $token,
+                        'priority' => $id
+                    ];
+                    break; // We found a valid split, no need to check others
+                }
+            }
+        }
+        
+        // Sort merges by priority (lower rank = higher priority)
+        usort($merges, function($a, $b) {
+            return $a['priority'] - $b['priority'];
+        });
+        
+        // Store the sorted merges
+        $this->bpeMerges = array_map(function($merge) {
+            return [$merge['first'], $merge['second']];
+        }, $merges);
+    }
+    
+    /**
+     * Byte-pair encoding algorithm implementation
+     * 
+     * @param string $text The text to tokenize
+     * @return array<int> The token IDs
+     */
+    private function bpeEncode(string $text): array
+    {
+        if (empty($text)) {
+            return [];
+        }
+        
+        // Convert string to UTF-8 bytes
+        $bytes = Utils::stringToBytes($text);
+        
+        // Initialize with individual bytes
+        $tokens = [];
+        foreach ($bytes as $byte) {
+            $tokens[] = chr($byte);
+        }
+        
+        // Apply merges until no more can be applied
+        $changes = true;
+        while ($changes && count($tokens) > 1) {
+            $changes = false;
+            
+            // Find all pairs in the current token list
+            $pairs = [];
+            for ($i = 0; $i < count($tokens) - 1; $i++) {
+                $pairs[] = [$tokens[$i], $tokens[$i + 1]];
+            }
+            
+            // Find the highest priority merge
+            $bestMerge = null;
+            $bestPos = -1;
+            
+            // Check against our merge list (most common merges first)
+            foreach ($this->bpeMerges as $mergeIndex => $merge) {
+                list($first, $second) = $merge;
+                
+                // Look for this pair in our token list
+                for ($i = 0; $i < count($pairs); $i++) {
+                    if ($pairs[$i][0] === $first && $pairs[$i][1] === $second) {
+                        // We found a mergeable pair
+                        $bestMerge = $merge;
+                        $bestPos = $i;
+                        break 2; // Break out of both loops
+                    }
+                }
+            }
+            
+            // Apply the best merge if found
+            if ($bestMerge !== null && $bestPos >= 0) {
+                list($first, $second) = $bestMerge;
+                $merged = $first . $second;
+                
+                // Replace the pair at bestPos with the merged token
+                $newTokens = array_slice($tokens, 0, $bestPos);
+                $newTokens[] = $merged;
+                $newTokens = array_merge($newTokens, array_slice($tokens, $bestPos + 2));
+                
+                $tokens = $newTokens;
+                $changes = true;
+            }
+        }
+        
+        // Convert tokens to IDs
+        $ids = [];
+        foreach ($tokens as $token) {
+            // If we have the token in our vocabulary
+            if (isset($this->tokenToId[$token])) {
+                $ids[] = $this->tokenToId[$token] + $this->numSpecialTokens;
+            } else {
+                // Fall back to byte-level encoding
+                foreach (Utils::stringToBytes($token) as $byte) {
+                    $byteToken = chr($byte);
+                    if (isset($this->tokenToId[$byteToken])) {
+                        $ids[] = $this->tokenToId[$byteToken] + $this->numSpecialTokens;
+                    } else {
+                        // Use the unknown token as last resort
+                        $ids[] = $this->unkId;
+                    }
+                }
+            }
+        }
+        
+        return $ids;
     }
 
     /**
@@ -222,28 +377,6 @@ class TekkenTokenizer extends AbstractTokenizer
     }
 
     /**
-     * Simple tokenization implementation for testing
-     * In a real implementation, this would use the regex pattern and merges
-     * 
-     * @param string $text The text to tokenize
-     * @return array<int> The token IDs
-     */
-    private function simpleTokenize(string $text): array
-    {
-        // For testing purposes, we'll use a simple character-based tokenization
-        $chars = Utils::splitUtf8Characters($text);
-        $tokens = [];
-        
-        foreach ($chars as $char) {
-            // In a real implementation, we would use the BPE algorithm
-            // For now, we'll just map each character to a token ID based on its ASCII value
-            $tokens[] = ord($char) + $this->numSpecialTokens;
-        }
-        
-        return $tokens;
-    }
-
-    /**
      * @inheritDoc
      */
     public function encode(string $text, bool $addBos = false, bool $addEos = false): array
@@ -252,7 +385,13 @@ class TekkenTokenizer extends AbstractTokenizer
             return [];
         }
 
-        $tokens = $this->simpleTokenize($text);
+        // If we have BPE merges, use BPE encoding
+        if (!empty($this->bpeMerges)) {
+            $tokens = $this->bpeEncode($text);
+        } else {
+            // Fall back to a simple character-based encoding for testing
+            $tokens = $this->simpleTokenize($text);
+        }
         
         // Add BOS/EOS tokens if requested
         if ($addBos) {
@@ -261,6 +400,27 @@ class TekkenTokenizer extends AbstractTokenizer
         
         if ($addEos) {
             $tokens[] = $this->eosId;
+        }
+        
+        return $tokens;
+    }
+
+    /**
+     * Simple tokenization implementation for testing
+     * Used as a fallback when BPE merges aren't available
+     * 
+     * @param string $text The text to tokenize
+     * @return array<int> The token IDs
+     */
+    private function simpleTokenize(string $text): array
+    {
+        // For testing purposes, use a simple character-based tokenization
+        $chars = Utils::splitUtf8Characters($text);
+        $tokens = [];
+        
+        foreach ($chars as $char) {
+            // Map each character to a token ID based on its ASCII value
+            $tokens[] = ord($char) + $this->numSpecialTokens;
         }
         
         return $tokens;
@@ -279,15 +439,31 @@ class TekkenTokenizer extends AbstractTokenizer
         
         foreach ($tokens as $token) {
             if ($this->isSpecialToken($token)) {
-                // Skip special tokens for now
+                // Skip special tokens
                 continue;
             } else {
-                // Convert the token back to a character
-                // In a real implementation, we would use the idToToken map
-                $result .= chr($token - $this->numSpecialTokens);
+                $tokenId = $token - $this->numSpecialTokens;
+                
+                // Check if we have this token in our vocabulary
+                if (isset($this->idToToken[$tokenId])) {
+                    $result .= $this->idToToken[$tokenId];
+                } else {
+                    // Fall back to treating it as a byte
+                    $result .= chr($tokenId);
+                }
             }
         }
         
         return $result;
+    }
+    
+    /**
+     * Get the BPE merges
+     * 
+     * @return array<array{string, string}> The BPE merges
+     */
+    public function getBpeMerges(): array
+    {
+        return $this->bpeMerges;
     }
 }
