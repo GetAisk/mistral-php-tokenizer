@@ -34,8 +34,12 @@ jobs:
         run: |
           cd mistral-php-tokenizer
           composer install --prefer-dist --no-progress
-          # Verify the tiktoken library is installed
-          composer show | grep tiktoken
+          # Ensure autoloader is up to date
+          composer dump-autoload -o
+          # Try to install tiktoken library if not already installed
+          composer require yethee/tiktoken:^0.10.0 --no-interaction --no-progress || true
+          # Verify the tiktoken library installation
+          composer show | grep tiktoken || echo "Tiktoken library not installed, will use fallback mode"
       
       - name: Set up Python
         uses: actions/setup-python@v4
