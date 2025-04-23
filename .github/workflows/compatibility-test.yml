@@ -166,12 +166,11 @@ jobs:
               test_cases = json.load(f)
           
           # Create tokenizer (Tekken v3) - explicitly using the same model as PHP
-          from mistral_common.tokens.tokenizers import DEFAULT_MODEL_FILES
           
           # Print debug info about available model files
-          print("\nMistral common model files:")
-          for key, value in DEFAULT_MODEL_FILES.items():
-              print(f"- {key}: {value}")
+          print("\nMistral common directory structure:")
+          import os
+          print(os.listdir('/home/runner/work/mistral-php-tokenizer/mistral-php-tokenizer/mistral-common/src/mistral_common'))
           
           # Explicitly use the 240911 model to match PHP
           tokenizer = MistralTokenizer.v3(is_tekken=True, is_mm=True)  # This will use tekken_240911.json
